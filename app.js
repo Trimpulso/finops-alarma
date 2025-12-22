@@ -12,9 +12,12 @@ async function loadStatusAndMaybeExcel() {
     const excelSection = document.getElementById('excelSection');
 
     try {
-        const res = await fetch(`${STATUS_FILE}?v=${Date.now()}`);
-        if (!res.ok) throw new Error(`No se pudo leer status.json (HTTP ${res.status})`);
-        const status = await res.json();
+        // Intentar leer status.json (opcional)
+        let status = { exists: false, checked: 'N/D', source: 'SharePoint', message: 'Aún no sincronizado desde SharePoint' };
+        try {
+            const res = await fetch(`${STATUS_FILE}?v=${Date.now()}`, { cache: 'no-store' });
+            if (res.ok) status = await res.json();
+        } catch {}
 
         // Render status
         statusSection.innerHTML = `
@@ -31,12 +34,16 @@ async function loadStatusAndMaybeExcel() {
             </div>
         `;
 
-        if (status.exists) {
-            loadExcelData();
+        // Independientemente del estado de SharePoint, comprobar si hay un Excel válido en el repo
+        const probe = await probeExcelInRepo();
+        if (probe.ok) {
+            // Mostrar además que está listo en el repositorio
+            excelSection.innerHTML = '<div class="loading">Cargando datos del Excel...</div>';
+            await renderExcelFromBuffer(probe.buffer);
         } else {
             excelSection.innerHTML = `
                 <h2>Datos del Excel - FinOps Azure Alertado</h2>
-                <div class="error">No se pudo sincronizar el archivo desde SharePoint.<br>${status.message || ''}</div>
+                <div class="error">${probe.message}</div>
             `;
         }
     } catch (error) {
@@ -51,67 +58,47 @@ async function loadStatusAndMaybeExcel() {
     }
 }
 
-// Función para cargar y mostrar datos del Excel (si está presente en data/)
-async function loadExcelData() {
-    const excelSection = document.getElementById('excelSection');
+// Comprueba si el Excel existe en el repo y tiene cabecera ZIP (PK)
+async function probeExcelInRepo() {
     try {
-        const response = await fetch(`${EXCEL_FILE}?v=${Date.now()}`);
-        if (!response.ok) {
-            throw new Error(`No se pudo descargar el Excel (HTTP ${response.status})`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-
-        // Obtener la primera hoja
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-
-        // Convertir a JSON (matriz de filas)
-        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        // Generar tabla HTML
-        let tableHTML = '<div class="table-container"><table class="excel-table"><thead>';
-
-        if (data.length > 0) {
-            // Headers
-            tableHTML += '<tr>';
-            data[0].forEach((header) => {
-                tableHTML += `<th>${header || ''}</th>`;
-            });
-            tableHTML += '</tr></thead><tbody>';
-
-            // Filas
-            for (let i = 1; i < data.length; i++) {
-                tableHTML += '<tr>';
-                data[i].forEach((cell) => {
-                    tableHTML += `<td>${cell !== undefined ? cell : ''}</td>`;
-                });
-                tableHTML += '</tr>';
-            }
-            tableHTML += '</tbody></table></div>';
-
-            excelSection.innerHTML = `
-                <h2>Datos del Excel - FinOps Azure Alertado</h2>
-                <div class="success">Archivo cargado: ${EXCEL_FILE}</div>
-                <p class="meta-inline">
-                    <strong>Hoja:</strong> ${firstSheetName} |
-                    <strong>Registros:</strong> ${data.length - 1}
-                </p>
-                ${tableHTML}
-            `;
-        } else {
-            throw new Error('El archivo no contiene datos');
-        }
-    } catch (error) {
-        excelSection.innerHTML = `
-            <h2>Datos del Excel - FinOps Azure Alertado</h2>
-            <div class="error">
-                ❌ No se pudo cargar el archivo Excel.<br>
-                Error: ${error.message}
-            </div>
-        `;
-        console.error('Error cargando Excel:', error);
+        const response = await fetch(`${EXCEL_FILE}?v=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) return { ok: false, message: `No se encontró el archivo en el repositorio (HTTP ${response.status})` };
+        const buffer = await response.arrayBuffer();
+        const header = new Uint8Array(buffer.slice(0, 4));
+        const isZip = header[0] === 0x50 && header[1] === 0x4b; // 'PK'
+        if (!isZip) return { ok: false, message: 'El archivo descargado no es un XLSX válido (parece HTML de login u otro formato).' };
+        return { ok: true, buffer };
+    } catch (e) {
+        return { ok: false, message: `Fallo al comprobar el archivo: ${e.message}` };
     }
+}
+
+// Renderiza la tabla a partir de un ArrayBuffer XLSX ya validado
+async function renderExcelFromBuffer(arrayBuffer) {
+    const excelSection = document.getElementById('excelSection');
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    if (data.length === 0) throw new Error('El archivo no contiene datos');
+
+    let tableHTML = '<div class="table-container"><table class="excel-table"><thead><tr>';
+    data[0].forEach((header) => { tableHTML += `<th>${header || ''}</th>`; });
+    tableHTML += '</tr></thead><tbody>';
+    for (let i = 1; i < data.length; i++) {
+        tableHTML += '<tr>';
+        data[i].forEach((cell) => { tableHTML += `<td>${cell !== undefined ? cell : ''}</td>`; });
+        tableHTML += '</tr>';
+    }
+    tableHTML += '</tbody></table></div>';
+
+    excelSection.innerHTML = `
+        <h2>Datos del Excel - FinOps Azure Alertado</h2>
+        <div class="success">Archivo cargado: ${EXCEL_FILE}</div>
+        <p class="meta-inline"><strong>Hoja:</strong> ${firstSheetName} | <strong>Registros:</strong> ${data.length - 1}</p>
+        ${tableHTML}
+    `;
 }
 
 // Iniciar
