@@ -1,14 +1,61 @@
 ﻿// Configuración
-const EXCEL_FILE = 'FinOps-Azure-Alertado.xlsx';
+const EXCEL_FILE = 'data/FinOps-Azure-Alertado.xlsx';
+const STATUS_FILE = 'data/status.json';
 const timestamp = document.getElementById('timestamp');
 
 // Actualizar timestamp
 timestamp.textContent = new Date().toLocaleString('es-ES');
 
-// Función para cargar y mostrar datos del Excel
-async function loadExcelData() {
+// Mostrar estado de SharePoint / sincronización
+async function loadStatusAndMaybeExcel() {
+    const statusSection = document.getElementById('statusSection');
+    const excelSection = document.getElementById('excelSection');
+
     try {
-        const response = await fetch(EXCEL_FILE);
+        const res = await fetch(`${STATUS_FILE}?v=${Date.now()}`);
+        if (!res.ok) throw new Error(`No se pudo leer status.json (HTTP ${res.status})`);
+        const status = await res.json();
+
+        // Render status
+        statusSection.innerHTML = `
+            <h2>Estado de sincronización</h2>
+            <div class="status-row">
+                <div class="badge ${status.exists ? 'ok' : 'fail'}">
+                    ${status.exists ? 'Existe en SharePoint' : 'No encontrado o sin sincronizar'}
+                </div>
+                <div class="meta">
+                    <div><strong>Última comprobación:</strong> ${status.checked || 'N/D'}</div>
+                    <div><strong>Fuente:</strong> ${status.source || 'SharePoint'}</div>
+                    <div><strong>Mensaje:</strong> ${status.message || 'Sin mensaje'}</div>
+                </div>
+            </div>
+        `;
+
+        if (status.exists) {
+            loadExcelData();
+        } else {
+            excelSection.innerHTML = `
+                <h2>Datos del Excel - FinOps Azure Alertado</h2>
+                <div class="error">No se pudo sincronizar el archivo desde SharePoint.<br>${status.message || ''}</div>
+            `;
+        }
+    } catch (error) {
+        statusSection.innerHTML = `
+            <h2>Estado de sincronización</h2>
+            <div class="error">No se pudo leer el estado.<br>Error: ${error.message}</div>
+        `;
+        excelSection.innerHTML = `
+            <h2>Datos del Excel - FinOps Azure Alertado</h2>
+            <div class="error">No hay datos porque falló la lectura de estado.</div>
+        `;
+    }
+}
+
+// Función para cargar y mostrar datos del Excel (si está presente en data/)
+async function loadExcelData() {
+    const excelSection = document.getElementById('excelSection');
+    try {
+        const response = await fetch(`${EXCEL_FILE}?v=${Date.now()}`);
         if (!response.ok) {
             throw new Error(`No se pudo descargar el Excel (HTTP ${response.status})`);
         }
@@ -43,11 +90,10 @@ async function loadExcelData() {
             }
             tableHTML += '</tbody></table></div>';
 
-            const excelSection = document.getElementById('excelSection');
             excelSection.innerHTML = `
-                <h2>📈 Datos del Excel - FinOps Azure Alertado</h2>
-                <div class="success">Archivo cargado exitosamente: ${EXCEL_FILE}</div>
-                <p style="margin: 15px 0; color: #666;">
+                <h2>Datos del Excel - FinOps Azure Alertado</h2>
+                <div class="success">Archivo cargado: ${EXCEL_FILE}</div>
+                <p class="meta-inline">
                     <strong>Hoja:</strong> ${firstSheetName} |
                     <strong>Registros:</strong> ${data.length - 1}
                 </p>
@@ -57,9 +103,8 @@ async function loadExcelData() {
             throw new Error('El archivo no contiene datos');
         }
     } catch (error) {
-        const excelSection = document.getElementById('excelSection');
         excelSection.innerHTML = `
-            <h2>📈 Datos del Excel - FinOps Azure Alertado</h2>
+            <h2>Datos del Excel - FinOps Azure Alertado</h2>
             <div class="error">
                 ❌ No se pudo cargar el archivo Excel.<br>
                 Error: ${error.message}
@@ -69,11 +114,11 @@ async function loadExcelData() {
     }
 }
 
-// Iniciar la aplicación
-loadExcelData();
+// Iniciar
+loadStatusAndMaybeExcel();
 
 // Actualizar cada 5 minutos
 setInterval(() => {
     timestamp.textContent = new Date().toLocaleString('es-ES');
-    loadExcelData();
+    loadStatusAndMaybeExcel();
 }, 300000);
