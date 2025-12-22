@@ -231,3 +231,49 @@ section {
         gap: 10px;
     }
 }
+/* Estilos adicionales para tabla Excel */
+.table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    font-size: 0.9em;
+}
+
+.excel-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.excel-table th {
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #fff;
+}
+
+.excel-table td {
+    padding: 10px 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.excel-table tbody tr:hover {
+    background: #f6f8fa;
+}
+
+.excel-table tbody tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.excel-table tbody tr:nth-child(even):hover {
+    background: #f0f0f0;
+}

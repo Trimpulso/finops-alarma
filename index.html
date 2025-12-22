@@ -1,37 +1,28 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Página de Prueba - GitHub Repository Viewer</title>
+    <title>FinOps Dashboard - Azure Alertas</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🚀 GitHub Repository Viewer</h1>
-            <p>Conectado a: <strong>prosegurfinop/test</strong></p>
+            <h1> FinOps Dashboard - Azure Alertas</h1>
+            <p>Datos desde SharePoint | <strong>Prosegur FinOps</strong></p>
         </header>
 
         <div class="content">
-            <section class="repo-info" id="repoInfo">
-                <h2>Información del Repositorio</h2>
-                <div class="loading">Cargando datos del repositorio...</div>
-            </section>
-
-            <section class="commits-section" id="commitsSection">
-                <h2>Últimos Commits</h2>
-                <div class="loading">Cargando commits...</div>
-            </section>
-
-            <section class="files-section" id="filesSection">
-                <h2>Archivos del Repositorio</h2>
-                <div class="loading">Cargando archivos...</div>
+            <section class="excel-data" id="excelSection">
+                <h2> Datos del Excel - FinOps Azure Alertado</h2>
+                <div class="loading">Cargando datos del Excel...</div>
             </section>
         </div>
 
         <footer>
-            <p>Página de prueba - GitHub API Integration</p>
+            <p>FinOps Dashboard - Datos en Tiempo Real</p>
             <p><small>Última actualización: <span id="timestamp"></span></small></p>
         </footer>
     </div>
