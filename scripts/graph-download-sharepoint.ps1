@@ -54,7 +54,7 @@ try {
 
   $token = Get-GraphToken -TenantId $TenantId -ClientId $ClientId -ClientSecret $ClientSecret
 
-  $siteUri = "https://graph.microsoft.com/v1.0/sites/$SiteHostname:/sites/$SitePath`?$select=id,name"
+  $siteUri = "https://graph.microsoft.com/v1.0/sites/$SiteHostname`:/sites/$SitePath`?`$select=id,name"
   $site = Invoke-Graph -Token $token -Method Get -Uri $siteUri
 
   if (-not $site.id) { Save-Status $false "No se encontró el sitio"; exit 3 }
