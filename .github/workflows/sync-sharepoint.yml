@@ -16,18 +16,41 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run SharePoint Graph sync
+
+      # Descarga directa con credenciales básicas (más simple que Graph)
+      - name: Download Excel via direct URL
         shell: pwsh
         env:
-          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
-          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
-          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
-          SHAREPOINT_HOSTNAME: ${{ secrets.SHAREPOINT_HOSTNAME }}
-          SHAREPOINT_SITE_PATH: ${{ secrets.SHAREPOINT_SITE_PATH }}
-          SHAREPOINT_DRIVE_NAME: ${{ secrets.SHAREPOINT_DRIVE_NAME }}
-          SHAREPOINT_ITEM_PATH: ${{ secrets.SHAREPOINT_ITEM_PATH }}
+          SP_URL: ${{ secrets.SHAREPOINT_URL }}
+          SP_USER: ${{ secrets.SHAREPOINT_USERNAME }}
+          SP_PASS: ${{ secrets.SHAREPOINT_PASSWORD }}
         run: |
-          ./scripts/graph-download-sharepoint.ps1
+          if (-not $env:SP_URL -or -not $env:SP_USER -or -not $env:SP_PASS) {
+            Write-Error "Faltan secrets: SHAREPOINT_URL / SHAREPOINT_USERNAME / SHAREPOINT_PASSWORD"
+          }
+
+          $sec = ConvertTo-SecureString $env:SP_PASS -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential($env:SP_USER, $sec)
+
+          if (!(Test-Path data)) { New-Item -ItemType Directory -Path data | Out-Null }
+
+          $outFile = "data/FinOps-Azure-Alertado.xlsx"
+          Write-Host "Descargando: $($env:SP_URL)"
+          Invoke-WebRequest -Uri $env:SP_URL -OutFile $outFile -Credential $cred -UseBasicParsing
+
+          $bytes = [System.IO.File]::ReadAllBytes($outFile)
+          if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x50 -or $bytes[1] -ne 0x4b) {
+            Write-Error "El archivo descargado no es XLSX (cabecera PK faltante)."
+          }
+
+          $status = @{
+            exists = $true
+            checked = [DateTime]::UtcNow.ToString("o")
+            source = "SharePoint (basic auth)"
+            message = "Sincronizado correctamente"
+          }
+          $status | ConvertTo-Json | Set-Content -Path data/status.json -Encoding UTF8
+
       - name: Commit and push if changed
         shell: bash
         run: |
@@ -35,7 +58,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/status.json data/FinOps-Azure-Alertado.xlsx || true
           if ! git diff --cached --quiet; then
-            git commit -m "Sync Excel from SharePoint via Graph"
+            git commit -m "Sync Excel from SharePoint (direct URL)"
             git push
           else
             echo "No changes to commit."
