@@ -1,0 +1,94 @@
+name: Sincronizar Excel desde SharePoint
+
+on:
+  schedule:
+    # Ejecutar diariamente a las 08:00 UTC (zona horaria de Azure)
+    - cron: '0 8 * * *'
+  # También permitir ejecución manual desde Actions
+  workflow_dispatch:
+
+jobs:
+  sync-excel:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Excel from SharePoint
+        shell: powershell
+        run: |
+          # Script para descargar el archivo desde SharePoint
+          $username = "${{ secrets.SHAREPOINT_USERNAME }}"
+          $password = "${{ secrets.SHAREPOINT_PASSWORD }}"
+          $sharePointUrl = "${{ secrets.SHAREPOINT_URL }}"
+          
+          # Convertir password a SecureString
+          $secPassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $credential = New-Object System.Management.Automation.PSCredential($username, $secPassword)
+          
+          # Crear carpeta data si no existe
+          $dataPath = "data"
+          if (!(Test-Path $dataPath)) {
+            New-Item -ItemType Directory -Path $dataPath | Out-Null
+          }
+          
+          # Descargar el archivo
+          try {
+            Write-Host "Descargando desde: $sharePointUrl"
+            Invoke-WebRequest -Uri $sharePointUrl -OutFile "$dataPath/FinOps-Azure-Alertado.xlsx" -Credential $credential -UseBasicParsing
+            
+            # Verificar que es un archivo XLSX válido (cabecera ZIP: PK)
+            $bytes = [System.IO.File]::ReadAllBytes("$dataPath/FinOps-Azure-Alertado.xlsx")
+            if ($bytes[0] -eq 0x50 -and $bytes[1] -eq 0x4b) {
+              Write-Host "✅ Archivo XLSX válido descargado correctamente"
+              exit 0
+            } else {
+              Write-Host "❌ El archivo no es un XLSX válido"
+              exit 1
+            }
+          } catch {
+            Write-Host "❌ Error: $_"
+            exit 1
+          }
+
+      - name: Create status file
+        shell: powershell
+        run: |
+          $status = @{
+            exists = $true
+            checked = [DateTime]::UtcNow.ToString("o")
+            source = "SharePoint (GitHub Actions)"
+            message = "Sincronizado correctamente"
+          }
+          
+          if (!(Test-Path "data")) {
+            New-Item -ItemType Directory -Path "data" | Out-Null
+          }
+          
+          $status | ConvertTo-Json | Set-Content -Path "data/status.json" -Encoding UTF8
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add data/
+          
+          # Solo hacer commit si hay cambios
+          if (git diff --cached --quiet) {
+            Write-Host "No hay cambios para sincronizar"
+          } else {
+            git commit -m "🔄 Sincronización automática: Actualizar Excel desde SharePoint"
+            git push
+          }
+        shell: powershell
+
+      - name: Upload as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finops-data
+          path: data/
+          retention-days: 30
