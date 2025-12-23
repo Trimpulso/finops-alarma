@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinOps Dashboard - Azure Alertas</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1> FinOps Dashboard - Azure Alertas</h1>
+            <p>Datos desde SharePoint | <strong>Prosegur FinOps</strong></p>
+        </header>
+
+        <div class="content">
+            <section class="status-card" id="statusSection">
+                <h2>Estado de sincronización</h2>
+                <div class="loading">Comprobando SharePoint...</div>
+            </section>
+
+            <section class="excel-data" id="excelSection">
+                <h2>Datos del Excel - FinOps Azure Alertado</h2>
+                <div class="loading">Esperando confirmación de archivo...</div>
+            </section>
+        </div>
+
+        <footer>
+            <p>FinOps Dashboard - Datos en Tiempo Real</p>
+            <p><small>Última actualización: <span id="timestamp"></span></small></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
